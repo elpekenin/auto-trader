@@ -20,6 +20,7 @@ This project is an auto trader script for Pokémon GO, using [scrcpy](https://gi
   - PC screen size
   - Position of some buttons on `scrcpy`'s window
   - Filter to avoid making special trade, changes for each language
-They migth need to be adjusted depending on your monitor/phone, they are easily find at the top of the file
+ 
+   They migth need to be adjusted depending on your monitor/phone, they are easily find at the top of the file
 - Code designed for Windows (API used to simulate input)
 - As the script takes control of the mouse (and keyboard for a brief moment at the start), you won't be able to use your mouse during the trades, but you could for example watch a movie
