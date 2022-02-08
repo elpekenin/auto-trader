@@ -3,7 +3,6 @@ import win32ui
 import win32con
 import win32api
 import time
-from random import random
 import numpy as np
 from matplotlib import pyplot 
 from PIL import Image
@@ -13,23 +12,31 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.button import Button
 from kivy.uix.popup import Popup
-from key_map import keys
+import directkeys
 
-OUTPUT = "out.bmp"
+# ====== YOU MIGHT NEED TO CHANGE THESE CONSTANTS
+# name of your scrcpy window
 WINDOW_NAME = "elpekenin"
+
+# Positions measured on pixels from the top-left corner of the window
+# if you have to change this, you can use paint to check the amount of pixels
+PROFILE_POSITION = [60, 840] # your avatar face on bottom-left
+FRIEND_POSITION = [300, 140] # friend list on the right side of your stats
+SEARCH_POSITION = [375, 250] # search tool on friend list
+
+# Your screen resolution in pixels, used to convert to & from windows coordinate system
+SCREEN_SIZE = [1920, 1080]
 
 
 def initialize_window():
-    global SCREEN_WIDTH, SCREEN_HEIGHT, dcObj, cDC, dataBitMap, rect_left, rect_bottom, window
+    global window, WINDOW_WIDTH, WINDOW_HEIGHT, windowDC, dcObj, cDC, dataBitMap
     # search window by name
     window = win32gui.FindWindow(None, WINDOW_NAME)
 
     # get window dimensions
     # pixels start counting on top-left corner
     rect = win32gui.GetWindowRect(window)
-    rect_left, rect_top, rect_right, rect_bottom = rect[0:4]
-
-    SCREEN_WIDTH, SCREEN_HEIGHT = rect_right - rect_left, rect_bottom - rect_top
+    WINDOW_WIDTH, WINDOW_HEIGHT = rect[2] - rect[0], rect[3] - rect[1]
 
     # create device context 
     windowDC = win32gui.GetWindowDC(window)  # DC = Device Context (int)
@@ -38,7 +45,7 @@ def initialize_window():
 
     # create bitmap
     dataBitMap = win32ui.CreateBitmap()
-    dataBitMap.CreateCompatibleBitmap(dcObj, SCREEN_WIDTH, SCREEN_HEIGHT)
+    dataBitMap.CreateCompatibleBitmap(dcObj, WINDOW_WIDTH, WINDOW_HEIGHT)
 
     # bind device context to bitmap
     cDC.SelectObject(dataBitMap)
@@ -73,12 +80,12 @@ def bitmap_to_np(bitMap):
         fixed_value = value if value >= 0 else 255+value
         remainder_dict[remainder].append(fixed_value)
 
-    b = np.array(remainder_dict[0]).reshape(SCREEN_HEIGHT, SCREEN_WIDTH)
-    g = np.array(remainder_dict[1]).reshape(SCREEN_HEIGHT, SCREEN_WIDTH)
-    r = np.array(remainder_dict[2]).reshape(SCREEN_HEIGHT, SCREEN_WIDTH)
+    b = np.array(remainder_dict[0]).reshape(WINDOW_HEIGHT, WINDOW_WIDTH)
+    g = np.array(remainder_dict[1]).reshape(WINDOW_HEIGHT, WINDOW_WIDTH)
+    r = np.array(remainder_dict[2]).reshape(WINDOW_HEIGHT, WINDOW_WIDTH)
 
     
-    matrix = np.zeros((SCREEN_HEIGHT, SCREEN_WIDTH, 3))
+    matrix = np.zeros((WINDOW_HEIGHT, WINDOW_WIDTH, 3))
     matrix[:,:,0] = r
     matrix[:,:,1] = g 
     matrix[:,:,2] = b 
@@ -86,59 +93,52 @@ def bitmap_to_np(bitMap):
     return matrix.astype(int)  
 
 
-def click(x, y):
-    """x,y coords starts at top left"""
+def coords_to_pixels(x, y):
+    "Coords [0, 65535], pixels depends on your screen"
+    return int(x * SCREEN_SIZE[0]/65535), int(y * SCREEN_SIZE[1]/65535)
 
+
+def pixels_to_coords(x, y):
+    return int(x * 65535/SCREEN_SIZE[0]), int(y * 65535/SCREEN_SIZE[1])
+
+ 
+def click(x, y):
     # Focus on window
     win32gui.SetForegroundWindow(window)
 
-    # Take window position
+    # Check window position
     rect = win32gui.GetWindowRect(window)
     left, top = rect[0], rect[1]
 
-    # Click it
+    # Convert to local pixels (inside window)
+    # To global pixels (inside computer screen)
     x += left
     y += top
-    win32api.SetCursorPos((x,y))
-    time.sleep(1)
-    win32api.mouse_event(
-        win32con.MOUSEEVENTF_LEFTDOWN,
-        x,
-        y,
-        0,
-        0
-    )   
-    win32api.mouse_event(
-        win32con.MOUSEEVENTF_LEFTUP,
-        x,
-        y,
-        0,
-        0
-    )
+
+    # Conver pixels to coords
+    x, y = pixels_to_coords(x, y)
+
+    # Newer function
+    directkeys.press_click(x, y)
+
 
 def trade(i):
-    wait = 2 * random()
-    x_off = int(100 * random())
-    y_off = int(100 * random())
-
-    if i == 0: # Start trading
+    # In order to start trading we have to go on the friend list and search for the other player
+    if i == 0:
         time.sleep(0.5) # wait before doing anything
 
-        click( 60, 840) # open profile
+        click(*PROFILE_POSITION) # open profile
         time.sleep(5) # wait for friend list to load
 
-        click(300, 140) # open friend list if not open already
+        click(*FRIEND_POSITION) # open friend list if not open already
         time.sleep(5) # wait for friend list to load
 
-        click(375, 250) # open search tool
+        click(*SEARCH_POSITION) # open search tool
         time.sleep(0.5) # wait for keyboard to load
 
         # type player's nickname
         for char in nick.lower():
-            time.sleep(0.1)
-            win32api.keybd_event(keys[char], 0,0,0)
-            time.sleep(0.1)
-            win32api.keybd_event(keys[char],0 ,win32con.KEYEVENTF_KEYUP ,0)
+            directkeys.press_key(char)
 
         # We assume both apps are already open with the secondary app on top-rigth 
 
@@ -157,7 +157,7 @@ def trade(i):
     # trade
 
     # copy window image into bitmap
-    cDC.BitBlt((0,0), (SCREEN_WIDTH, SCREEN_HEIGHT), dcObj, (0,0), win32con.SRCCOPY)
+    cDC.BitBlt((0,0), (WINDOW_WIDTH, WINDOW_HEIGHT), dcObj, (0,0), win32con.SRCCOPY)
 
     # read screen
     matrix = bitmap_to_np(dataBitMap.GetBitmapBits())
@@ -184,8 +184,8 @@ class GUI(App):
             trade(i)
             exit()
          
-        # update progress bar
-        progress_bar(i)
+            # update progress bar
+            progress_bar(i)
 
         # free resources
         exit()
@@ -196,45 +196,45 @@ class GUI(App):
         self.layout = FloatLayout(size=(500,500))
 
         self.text_input_nick = TextInput(
-            text = "",
-            hint_text = "Nickname of player2",
-            size_hint = (GUI.text_x_size, GUI.text_y_size),
-            pos_hint = {
+            text="",
+            hint_text="Nickname of player2",
+            size_hint=(GUI.text_x_size, GUI.text_y_size),
+            pos_hint={
                 "x": 0.5 - GUI.text_x_size/2,
                 "y":   3 * GUI.text_y_size
             },
-            multiline = False
+            multiline=False
         )
         self.layout.add_widget(self.text_input_nick)
 
         self.text_input_tag_1 = TextInput(
-            text = "",
-            hint_text = "Tag name for player1",
-            size_hint = (GUI.text_x_size, GUI.text_y_size),
-            pos_hint = {
+            text="",
+            hint_text="Tag name for player1",
+            size_hint=(GUI.text_x_size, GUI.text_y_size),
+            pos_hint={
                 "x": 0.5 - GUI.text_x_size/2,
                 "y":   2 * GUI.text_y_size
             },
-            multiline = False
+            multiline=False
         )
         self.layout.add_widget(self.text_input_tag_1)
 
         self.text_input_tag_2 = TextInput(
-            text = "",
-            hint_text = "Tag name for player2",
-            size_hint = (GUI.text_x_size, GUI.text_y_size),
-            pos_hint = {
+            text="",
+            hint_text="Tag name for player2",
+            size_hint=(GUI.text_x_size, GUI.text_y_size),
+            pos_hint={
                 "x": 0.5 - GUI.text_x_size/2,
                 "y":   1 * GUI.text_y_size
             },
-            multiline = False
+            multiline=False
         )
         self.layout.add_widget(self.text_input_tag_2)
 
         self.start_button = Button(
             text="Start",
-            size_hint = (0.3, 0.1),
-            pos_hint = {"x": 0.6, "y": 0.2}
+            size_hint=(0.3, 0.1),
+            pos_hint={"x": 0.6, "y": 0.2}
         )
         self.start_button.bind(on_press=self.start_trades)  
         self.layout.add_widget(self.start_button)
@@ -244,23 +244,23 @@ class GUI(App):
 
         self.error_layout.add_widget(
             Label(
-                text = "Check the input fields",
-                size_hint = (0.3, 0.1),
-                pos_hint = {"x": 0.35, "y": 0.5}
+                text="Check the input fields",
+                size_hint=(0.3, 0.1),
+                pos_hint={"x": 0.35, "y": 0.5}
             )
         )
 
         self.close_popup_button = Button(
-            text = "Close",
-            size_hint = (0.3, 0.1),
-            pos_hint = {"x": 0.35, "y": 0.1}
+            text="Close",
+            size_hint=(0.3, 0.1),
+            pos_hint={"x": 0.35, "y": 0.1}
         )
         self.error_layout.add_widget(self.close_popup_button)
         self.error_popup = Popup(
-            title = "Error",
-            content = self.error_layout,
+            title="Error",
+            content=self.error_layout,
             size_hint=(None, None),
-            size = (300,200)
+            size=(300,200)
         )
         self.close_popup_button.bind(on_press=self.error_popup.dismiss)
 

@@ -17,6 +17,11 @@ KEYEVENTF_KEYUP       = 0x0002
 KEYEVENTF_UNICODE     = 0x0004
 KEYEVENTF_SCANCODE    = 0x0008
 
+MOUSEEVENTF_MOVE = 0x0001
+MOUSEEVENTF_LEFTDOWN = 0x0002
+MOUSEEVENTF_LEFTUP = 0x0004
+MOUSEEVENTF_ABSOLUTE = 0x8000
+
 MAPVK_VK_TO_VSC = 0
 
 
@@ -89,6 +94,7 @@ def PressKey(hexKeyCode):
     )
     user32.SendInput(1, ctypes.byref(x), ctypes.sizeof(x))
 
+
 def ReleaseKey(hexKeyCode):
     x = INPUT(
         type=INPUT_KEYBOARD,
@@ -97,11 +103,42 @@ def ReleaseKey(hexKeyCode):
     user32.SendInput(1, ctypes.byref(x), ctypes.sizeof(x))
 
 
+def PressClick(x, y):
+    xx = INPUT(
+        type=INPUT_MOUSE,
+        mi=MOUSEINPUT(
+            dx=x,
+            dy=y,
+            dwFlags=MOUSEEVENTF_ABSOLUTE|MOUSEEVENTF_LEFTDOWN|MOUSEEVENTF_MOVE,
+            time=0
+        )
+    )
+    user32.SendInput(1, ctypes.byref(xx), ctypes.sizeof(xx))
+
+
+def ReleaseClick(x, y):
+    xx = INPUT(
+        type=INPUT_MOUSE,
+        mi=MOUSEINPUT(
+            dwFlags=MOUSEEVENTF_LEFTUP,
+            time=0
+        )
+    )
+    user32.SendInput(1, ctypes.byref(xx), ctypes.sizeof(xx))
+
+
 def press_key(key):
     hexKeyCode = key_to_hex(key)
     PressKey(hexKeyCode)
     time.sleep(0.1)
     ReleaseKey(hexKeyCode)
+
+
+def press_click(x,y):
+    PressClick(x, y)
+    time.sleep(0.1)
+    ReleaseClick(x, y)
+
 
 if __name__ == "__main__":
     print("Don't run this")
