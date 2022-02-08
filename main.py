@@ -27,6 +27,9 @@ SEARCH_POSITION = [375, 250] # search tool on friend list
 # Your screen resolution in pixels, used to convert to & from windows coordinate system
 SCREEN_SIZE = [1920, 1080]
 
+# Exclude pokemon which are special trades (shiny & legendary)
+NON_TRADE = "& !legendario & !variocolor"
+
 
 def initialize_window():
     global window, WINDOW_WIDTH, WINDOW_HEIGHT, windowDC, dcObj, cDC, dataBitMap
